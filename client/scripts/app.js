@@ -1,85 +1,10 @@
 $(document).ready(function(){
   var chat = new Chat();
-  var friends = {};
-  var roomname = getQueryVariable("room");
-  var userName = getQueryVariable("username");
-  var newdiv;
-  $('.userMessage input').keyup(function(event){
-    if (event.keyCode === 13){
-      $('.send').click();
-    }
-  });
-  $('.send').click(function(){
-      chat.postMessage({
-        success:function (data) {
-          $('.userMessage input').val("");
-        },
-        error: function (data) {
-          console.error('chatterbox: Failed to send message');
-        },
-        message: {
-          'username': userName,
-          'text': $('.userMessage input').val(),
-          'roomname': roomname || 'lobby'
-        }
-    });
-  });
-
-  $('.makeRoom').click(function(){
-    window.location += '&room=' + encodeURI( prompt('what would you like to call your new room?') );
-  });
-  $('.mainMessages').on('click','.message .username',function(){
-    var username = $(this).attr("username");
-    friends[username]=true;
-    for (var friend in friends){
-      $('[username="' + friend + '"]').parent().css({'font-weight':'600'});
-    }
-    return false;
-  });
-
-  $('.mainMessages').on('click','.message .roomname',function(){
-    var roomname = $(this).attr("roomname");
-    window.location += '&room=' + roomname;
-    return false;
-  });
-  var getMsgOptions = {
-    lastMsgTime: function(){
-      var lastMsgTime;
-      $firstChild = $('.mainMessages').children();
-      if ($firstChild.length === 0){
-        lastMsgTime = null;
-      } else{
-        lastMsgTime = $($firstChild[0]).attr('createdAt');
-      }
-      return lastMsgTime;
-    },
-    room: roomname,
-    renderHtml : function(msg){
-      $newLink = $('<a class="username" href="#"></a>');
-      $newLink.text(msg.username+": ");
-      $newLink2 = $('<a class="roomname" href="#"></a>');
-      $newLink2.text(" Room: " + msg.roomname);
-      $newdiv = $('<div class="message"></div>').text(msg.text);
-      $newdiv.attr("createdAt",msg.createdAt);
-      $newLink.attr("username",msg.username);
-      $newLink2.attr("roomname",msg.roomname);
-      $newdiv.prepend($newLink);
-      $newdiv.append($newLink2);
-      if (this.lastMsgTime){
-        $('.mainMessages').prepend($newdiv);
-      } else{
-        $('.mainMessages').append($newdiv);
-      }
-    }
-  };
-
-  chat.getMessages(getMsgOptions);
-  setInterval(function(){chat.getMessages(getMsgOptions);},3000);
+  new ChatView(chat);
 });
+
 var Chat = function(){
-
 };
-
 Chat.prototype.postMessage = function(options){
   $.ajax({
     url: 'https://api.parse.com/1/classes/chatterbox',
@@ -112,6 +37,99 @@ Chat.prototype.getMessages = function(options){
   });
 };
 
+var ChatView = function(options){
+  this.chat = options;
+  var that = this;
+  this.getMsgOptions = {
+    lastMsgTime: this.lastMessageTime,
+    room: this.roomname,
+    renderHtml : this.renderHtml
+  };
+  this.friends = {};
+  this.roomname = getQueryVariable("room");
+  this.userName = getQueryVariable("username");
+  $('.userMessage input').keyup(that.enterTrigger);
+  var clickTrigger = $.proxy(this.clickTrigger,this);
+  $('.send').click(clickTrigger);
+  $('.makeRoom').click(that.makeRoom);
+  // var addFriend = $.proxy(this.addFriend,this);
+  $('.mainMessages').on('click','.message .username',this.addFriend);
+  $('.mainMessages').on('click','.message .roomname',this.enterRoom);
+
+  this.chat.getMessages(this.getMsgOptions);
+  setInterval(function(){
+    that.chat.getMessages(that.getMsgOptions);
+  },3000);
+};
+ChatView.prototype.lastMessageTime = function(){
+  var lastMsgTime;
+  $firstChild = $('.mainMessages').children();
+  if ($firstChild.length === 0){
+    lastMsgTime = null;
+  } else{
+    lastMsgTime = $($firstChild[0]).attr('createdAt');
+  }
+  return lastMsgTime;
+};
+ChatView.prototype.renderHtml = function(msg){
+  var $newLink = $('<a class="username" href="#"></a>');
+  $newLink.text(msg.username+": ");
+  var $newLink2 = $('<a class="roomname" href="#"></a>');
+  $newLink2.text(" Room: " + msg.roomname);
+  var $newdiv = $('<div class="message"></div>').text(msg.text);
+  $newdiv.attr("createdAt",msg.createdAt);
+  $newLink.attr("username",msg.username);
+  $newLink2.attr("roomname",msg.roomname);
+  $newdiv.prepend($newLink);
+  $newdiv.append($newLink2);
+  $('.mainMessages').prepend($newdiv);
+  ChatView.prototype.styleFriends();
+};
+ChatView.prototype.enterTrigger = function(event){
+  if (event.keyCode === 13){
+    $('.send').click();
+  }
+};
+ChatView.prototype.clickTrigger = function(){
+    this.chat.postMessage({
+      success:function (data) {
+        $('.userMessage input').val("");
+      },
+      error: function (data) {
+        console.error('chatterbox: Failed to send message');
+      },
+      message: {
+        'username': this.userName,
+        'text': $('.userMessage input').val(),
+        'roomname': this.roomname || 'lobby'
+      }
+  });
+};
+ChatView.prototype.makeRoom = function(){
+  window.location += '&room=' + encodeURI( prompt('what would you like to call your new room?') );
+};
+ChatView.prototype.addFriend = function(){
+  var username = $(this).attr("username");
+  var amigos = JSON.parse(localStorage.getItem("amigos"));
+  if (!amigos){
+    amigos = {};
+  }
+  amigos[username]=true;
+  localStorage.setItem("amigos",JSON.stringify(amigos));
+  ChatView.prototype.styleFriends();
+  return false;
+};
+ChatView.prototype.styleFriends = function() {
+  var amigos = JSON.parse(localStorage.getItem("amigos"));
+  for (var friend in amigos){
+    $('[username="' + friend + '"]').parent().css({'font-weight':'600'});
+  }
+};
+ChatView.prototype.enterRoom = function(){
+  var roomname = $(this).attr("roomname");
+  window.location += '&room=' + roomname;
+  return false;
+};
 var getQueryVariable = function(variable){
   var query = window.location.search.substring(1);
   var vars = query.split("&");
