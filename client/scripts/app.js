@@ -15,19 +15,24 @@ Chat.prototype.postMessage = function(options){
     error: options.error
   });
 };
-Chat.prototype.getMessages = function(options){
+Chat.prototype.getMessages = function(lastMsgTime,roomname){
   $.ajax({
     url: 'https://api.parse.com/1/classes/chatterbox?order=-createdAt',
     type: 'GET'
     }).done(function(messages){
     var msg;
+    var counter = 0;
     for (var key in messages.results){
       msg = messages.results[key];
-      if (options.lastMsgTime() && msg.createdAt <= options.lastMsgTime()){
+      counter++;
+      if (counter === 4){
+        break;
+      }
+      if (lastMsgTime && msg.createdAt <= lastMsgTime){
         continue;
       }
-      if (options.room){
-        if (msg.roomname === options.room){
+      if (roomname){
+        if (msg.roomname === roomname){
           events.trigger('message:display', msg);
         }
       } else {
@@ -41,11 +46,11 @@ var ChatView = function(options){
   this.chat = options;
   events.on('message:display', this.renderHtml, this);
   var that = this;
-  this.getMsgOptions = {
-    lastMsgTime: this.lastMessageTime,
-    room: this.roomname,
-    renderHtml : this.renderHtml
-  };
+  // this.getMsgOptions = {
+  //   lastMsgTime: this.lastMessageTime,
+  //   room: this.roomname//,
+  //   // renderHtml : this.renderHtml
+  // };
   this.friends = {};
   this.roomname = getQueryVariable("room");
   this.userName = getQueryVariable("username");
@@ -56,9 +61,9 @@ var ChatView = function(options){
   $('.mainMessages').on('click','.message .username',this.addFriend);
   $('.mainMessages').on('click','.message .roomname',this.enterRoom);
 
-  this.chat.getMessages(this.getMsgOptions);
+  this.chat.getMessages(this.lastMessageTime(),this.roomname);
   setInterval(function(){
-    that.chat.getMessages(that.getMsgOptions);
+    that.chat.getMessages(that.lastMessageTime(),that.roomname);
   },3000);
 };
 
