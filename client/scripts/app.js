@@ -2,7 +2,7 @@ $(document).ready(function(){
   var chat = new Chat();
   new ChatView(chat);
 });
-
+var events = _.clone(Backbone.Events);
 var Chat = function(){
 };
 Chat.prototype.postMessage = function(options){
@@ -28,10 +28,10 @@ Chat.prototype.getMessages = function(options){
       }
       if (options.room){
         if (msg.roomname === options.room){
-          options.renderHtml(msg);
+          events.trigger('message:display', msg);
         }
       } else {
-        options.renderHtml(msg);
+        events.trigger('message:display', msg);
       }
     }
   });
@@ -39,6 +39,7 @@ Chat.prototype.getMessages = function(options){
 
 var ChatView = function(options){
   this.chat = options;
+  events.on('message:display', this.renderHtml, this);
   var that = this;
   this.getMsgOptions = {
     lastMsgTime: this.lastMessageTime,
@@ -52,7 +53,6 @@ var ChatView = function(options){
   var clickTrigger = $.proxy(this.clickTrigger,this);
   $('.send').click(clickTrigger);
   $('.makeRoom').click(that.makeRoom);
-  // var addFriend = $.proxy(this.addFriend,this);
   $('.mainMessages').on('click','.message .username',this.addFriend);
   $('.mainMessages').on('click','.message .roomname',this.enterRoom);
 
@@ -61,6 +61,7 @@ var ChatView = function(options){
     that.chat.getMessages(that.getMsgOptions);
   },3000);
 };
+
 ChatView.prototype.lastMessageTime = function(){
   var lastMsgTime;
   $firstChild = $('.mainMessages').children();
@@ -71,6 +72,22 @@ ChatView.prototype.lastMessageTime = function(){
   }
   return lastMsgTime;
 };
+ChatView.prototype.clickTrigger = function(){
+  this.chat.postMessage({
+    success:function (data) {
+      $('.userMessage input').val("");
+    },
+    error: function (data) {
+      console.error('chatterbox: Failed to send message');
+    },
+    message: {
+      'username': this.userName,
+      'text': $('.userMessage input').val(),
+      'roomname': this.roomname || 'lobby'
+    }
+  });
+};
+
 ChatView.prototype.renderHtml = function(msg){
   var $newLink = $('<a class="username" href="#"></a>');
   $newLink.text(msg.username+": ");
@@ -89,21 +106,6 @@ ChatView.prototype.enterTrigger = function(event){
   if (event.keyCode === 13){
     $('.send').click();
   }
-};
-ChatView.prototype.clickTrigger = function(){
-    this.chat.postMessage({
-      success:function (data) {
-        $('.userMessage input').val("");
-      },
-      error: function (data) {
-        console.error('chatterbox: Failed to send message');
-      },
-      message: {
-        'username': this.userName,
-        'text': $('.userMessage input').val(),
-        'roomname': this.roomname || 'lobby'
-      }
-  });
 };
 ChatView.prototype.makeRoom = function(){
   window.location += '&room=' + encodeURI( prompt('what would you like to call your new room?') );
